@@ -36,7 +36,8 @@ function analyizeMessage(data){
     res.on('data', function (chunk) {
       var downloadURL = generatePublicURL(data.file.permalink_public, data.file.url_private);
       console.log("Download link " + downloadURL);
-      download(downloadURL, data.file.id+".mp4", data.file.id)
+      compressOnlineVideo(data.file.id, downloadURL);
+      //download(downloadURL, data.file.id+".mp4", data.file.id);
       console.log('BODY: ' + chunk);
     });
   });
@@ -67,11 +68,11 @@ function download(url, dest, videoId) {
     file.on('finish', function() {
       console.log("finish");
       file = null;
-      compress(videoId);
+      compressLocalVideo(videoId);
     });
   });
 }
-function compress(videoId){
+function compressLocalVideo(videoId){
   var proc = new ffmpeg(videoId+".mp4")
       .addOption('-c:v',  'libx264', '-profile:v', 'baseline', '-level', '3.0', '-b:v', '800k')
       .addOption('-g', 10, '-qmin', 10, '-qmax', 51, '-i_qfactor', 0.71, '-qcomp', 0.6, '-me_method', 'hex')
@@ -86,6 +87,20 @@ function compress(videoId){
           if (err) throw err;
           console.log("deleted" + videoId+".mp4");
         });
+     })
+     .save(videoId + "_modified" + ".mp4");
+}
+function compressOnlineVideo(videoId, path){
+  var proc = new ffmpeg(path)
+      .addOption('-c:v',  'libx264', '-profile:v', 'baseline', '-level', '3.0', '-b:v', '800k')
+      .addOption('-g', 10, '-qmin', 10, '-qmax', 51, '-i_qfactor', 0.71, '-qcomp', 0.6, '-me_method', 'hex')
+      .addOption('-subq', 5, '-r', 20/1 ,'-pix_fmt', 'yuv420p')
+      .addOption('-c:a', 'libfdk_aac', '-ac', 2 ,'-ar', 44100)
+      .on('start', function(commandLine) {
+        console.log("%s: Spawned FFmpeg with command: %s", commandLine);
+      })
+      .on('end', function() {
+        console.log("DONE");
      })
      .save(videoId + "_modified" + ".mp4");
 }
