@@ -1,10 +1,7 @@
 var express = require('express'),
     SlackBot = require('slackbots'),
     ffmpeg = require('fluent-ffmpeg'),
-    http = require('http'),
     fs = require('fs'),
-    path = require('path'),
-    mime = require('mime'),
     https = require('https');
 
 var testToken = "xoxp-39696235703-39688555638-40038383251-9dd23314ec";
@@ -17,9 +14,9 @@ var params = {
     icon_emoji: ':cat:'
 };
 
-bot.on('start', function() {
-    bot.postMessageToChannel('general', 'meow!', params);
-});
+// bot.on('start', function() {
+//     bot.postMessageToChannel('general', 'meow!', params);
+// });
 bot.on('message', function(data) {
     analyizeMessage(data);
     console.log(data);
@@ -36,20 +33,11 @@ function analyizeMessage(data){
     res.on('data', function (chunk) {
       var downloadURL = generatePublicURL(data.file.permalink_public, data.file.url_private);
       console.log("Download link " + downloadURL);
-      compressOnlineVideo(data.file.id, downloadURL);
+      compressOnlineVideo(data.file.id, downloadURL, data);
       //download(downloadURL, data.file.id+".mp4", data.file.id);
       console.log('BODY: ' + chunk);
     });
   });
-
-  // bot.postMessageToUser(user, data.file.url_private, params);
-  // if(data.text == "hi"){
-  //   var user = getUser(bot.getUsers()._value.members, data.user);
-  //   if(user != null){
-  //     bot.postMessageToUser(user, 'Ya 7omar user', params);
-  //   }
-  // }
-
 }
 function getUser(users, userId){
   // console.log(users);
@@ -90,17 +78,25 @@ function compressLocalVideo(videoId){
      })
      .save(videoId + "_modified" + ".mp4");
 }
-function compressOnlineVideo(videoId, path){
+function compressOnlineVideo(videoId, path, data){
+  var user = getUser(bot.getUsers()._value.members, data.user);
+  if(user == null){
+    return;
+  }
   var proc = new ffmpeg(path)
       .addOption('-c:v',  'libx264', '-profile:v', 'baseline', '-level', '3.0', '-b:v', '800k')
       .addOption('-g', 10, '-qmin', 10, '-qmax', 51, '-i_qfactor', 0.71, '-qcomp', 0.6, '-me_method', 'hex')
       .addOption('-subq', 5, '-r', 20/1 ,'-pix_fmt', 'yuv420p')
       .addOption('-c:a', 'libfdk_aac', '-ac', 2 ,'-ar', 44100)
+      .on('progress', function(progress) {
+        bot.postMessageToUser(user, 'Processing: ' + progress.frames + ' frames done', params);
+      })
       .on('start', function(commandLine) {
         console.log("%s: Spawned FFmpeg with command: %s", commandLine);
       })
       .on('end', function() {
         console.log("DONE");
+        bot.postMessageToUser(user, "Here is the link : " + videoId + "_modified" + ".mp4", params);
      })
      .save(videoId + "_modified" + ".mp4");
 }
