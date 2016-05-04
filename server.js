@@ -26,19 +26,21 @@ function analyizeMessage(data){
   if(data.type != "message" || data.user == null || data.file == null || data.file.filetype != "mp4"){
     return;
   }
-  var url = "https://slack.com/api/files.sharedPublicURL?token=" + testToken + "&file=" + data.file.id;
-  var request = https.get(url, function(res) {
-    console.log('STATUS: ' + res.statusCode);
-    console.log('HEADERS: ' + JSON.stringify(res.headers));
-    res.setEncoding('utf8');
-    res.on('data', function (chunk) {
-      var downloadURL = generatePublicURL(data.file.permalink_public, data.file.url_private);
-      console.log("Download link " + downloadURL);
-      compressOnlineVideo(data.file.id, downloadURL, data);
-      //download(downloadURL, data.file.id+".mp4", data.file.id);
-      console.log('BODY: ' + chunk);
+  if(data.text.indexOf("compress") > -1){
+    var url = "https://slack.com/api/files.sharedPublicURL?token=" + testToken + "&file=" + data.file.id;
+    var request = https.get(url, function(res) {
+      console.log('STATUS: ' + res.statusCode);
+      console.log('HEADERS: ' + JSON.stringify(res.headers));
+      res.setEncoding('utf8');
+      res.on('data', function (chunk) {
+        var downloadURL = generatePublicURL(data.file.permalink_public, data.file.url_private);
+        console.log("Download link " + downloadURL);
+        compressOnlineVideo(data.file.id, downloadURL, data);
+        //download(downloadURL, data.file.id+".mp4", data.file.id);
+        console.log('BODY: ' + chunk);
+      });
     });
-  });
+  }
 }
 function getUser(users, userId){
   // console.log(users);
