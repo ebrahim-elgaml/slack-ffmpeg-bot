@@ -15,14 +15,26 @@ var params = {
     icon_emoji: ':cat:'
 };
 
-// bot.on('start', function() {
-//     bot.postMessageToChannel('general', 'meow!', params);
-// });
+bot.on('start', function() {
+    bot.postMessageToChannel('general', 'meow!', params);
+  //  console.log("Users : " + JSON.stringify(bot.getUsers()._value.members));
+});
 bot.on('message', function(data) {
+  //console.log("Users : " + bot.getUsers()._value.members);
     analyizeMessage(data);
     console.log(data);
 });
 function analyizeMessage(data){
+  if(data.type == "message" && data.text.indexOf("how") > -1 && data.text.indexOf("compress") > -1){
+    var user = getUser(bot.getUsers()._value.members, data.user);
+    howToCompress(data, user);
+    return;
+  }
+  if(data.type == "message" && data.text.indexOf("token") > -1){
+    var user = getUser(bot.getUsers()._value.members, data.user);
+    saveMyToken(data, user);
+    return;
+  }
   if(data.type != "message" || data.user == null || data.file == null || data.file.filetype != "mp4"){
     return;
   }
@@ -36,8 +48,7 @@ function analyizeMessage(data){
         var downloadURL = generatePublicURL(data.file.permalink_public, data.file.url_private);
         console.log("Download link " + downloadURL);
         compressOnlineVideo(data.file.id, downloadURL, data);
-        //download(downloadURL, data.file.id+".mp4", data.file.id);
-        console.log('BODY: ' + chunk);
+
       });
     });
   }
@@ -52,40 +63,13 @@ function getUser(users, userId){
   }
   return null;
 }
-function download(url, dest, videoId) {
-  var file = fs.createWriteStream(dest);
-  var request = https.get(url, function(response) {
-    response.pipe(file);
-    file.on('finish', function() {
-      console.log("finish");
-      file = null;
-      compressLocalVideo(videoId);
-    });
-  });
-}
-function compressLocalVideo(videoId){
-  var proc = new ffmpeg(videoId+".mp4")
-      .addOption('-c:v',  'libx264', '-profile:v', 'baseline', '-level', '3.0', '-b:v', '800k')
-      .addOption('-g', 10, '-qmin', 10, '-qmax', 51, '-i_qfactor', 0.71, '-qcomp', 0.6, '-me_method', 'hex')
-      .addOption('-subq', 5, '-r', 20/1 ,'-pix_fmt', 'yuv420p')
-      .addOption('-c:a', 'libfdk_aac', '-ac', 2 ,'-ar', 44100)
-      .on('start', function(commandLine) {
-        console.log("%s: Spawned FFmpeg with command: %s", commandLine);
-      })
-      .on('end', function() {
-        console.log("DONE");
-        fs.unlink(videoId+".mp4", (err) => {
-          if (err) throw err;
-          console.log("deleted" + videoId+".mp4");
-        });
-     })
-     .save(videoId + "_modified" + ".mp4");
-}
+
 function compressOnlineVideo(videoId, path, data){
   var user = getUser(bot.getUsers()._value.members, data.user);
   if(user == null){
     return;
   }
+  howToCompress(data, user);
   bot.postMessageToUser(user, "Fetching the video", params);
   var proc = new ffmpeg(path)
       .addOption('-c:v',  'libx264', '-profile:v', 'baseline', '-level', '3.0', '-b:v', '800k')
@@ -103,6 +87,14 @@ function compressOnlineVideo(videoId, path, data){
         bot.postMessageToUser(user, "Here is the link : " + videoId + "_modified" + ".mp4", params);
      })
      .save(videoId + "_modified" + ".mp4");
+}
+function howToCompress(data, user){
+  bot.postMessageToUser(user, "Go to the link  : https://api.slack.com/docs/oauth-test-tokens \n If you have token copy it and send it to me \n If not generate a one and send it to me \n you should send it in the format token=YOURTOKEN", params);
+}
+function saveMyToken(data, user){
+  var token = data.text.split("=");
+  
+  bot.postMessageToUser(user, "I have saved your token do not worry I will not share it with anyone", params);
 }
 function generatePublicURL(permalink_public, url_private){
   var s = permalink_public.split("-");
