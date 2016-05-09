@@ -57,10 +57,15 @@ function compressOnlineVideo(videoId, path, data, token, user){
       .addOption('-subq', 5, '-r', 20/1 ,'-pix_fmt', 'yuv420p')
       .addOption('-c:a', 'libfdk_aac', '-ac', 2 ,'-ar', 44100)
       .on('progress', function(progress) {
-         bot.postMessageToUser(user, "Do not worry still working for you on "+  videoId + "_modified" + ".mp4 " +": " + 'Processing: ' + progress.frames + ' frames  done', params);
+         bot.postMessageToUser(user, "Do not worry still working for you on "+  videoId  + ".mp4 " +": " + 'Processing: ' + progress.frames + ' frames  done', params);
       })
       .on('start', function(commandLine) {
         console.log("%s: Spawned FFmpeg with command: %s", commandLine);
+      })
+      .on('error', function(err, stdout, stderr) {
+        console.log('Cannot process video: ' + err.message);
+        bot.postMessageToUser(user, 'Cannot process video: ' + err.message, params);
+
       })
       .on('end', function() {
         console.log("DONE");
@@ -71,15 +76,12 @@ function compressOnlineVideo(videoId, path, data, token, user){
           console.log("Data data data data data " + user)
           res.setEncoding('utf8');
           res.on('data', function (chunk) {
-            bot.postMessageToUser(user, "Here is the link : " + videoId + "_modified" + ".mp4" + " , and I have deleted the original file to save space on Slack.", params);
+            bot.postMessageToUser(user, "Here is the link : " + config.path_url + videoId + ".mp4" + " , and I have deleted the original file to save space on Slack.", params);
             return;
           });
         });
-
-        // setTimeout(deleteVideoFromLink(data, token), 5000)
-
      })
-     .save(videoId + "_modified" + ".mp4");
+     .save(config.video_path + videoId +  ".mp4");
 }
 function howToCompress(data, user){
   bot.postMessageToUser(user, "Go to the link  : https://api.slack.com/docs/oauth-test-tokens \n If you have token copy it and send it to me \n If not generate a token and send it to me \n you should send it in the format token=YOURTOKEN \n Then upload the video and call me in the comment to compress it for you by typing compress lucy", params);
@@ -117,7 +119,6 @@ function saveMyToken(data, user){
   })
 }
 function getUserToken(data, user){
-  console.log("GET USER TOKEN XXXXXXXXXXXXXXX L " + user);
   fs.exists("user-tokens.json", function (exists) {
     if(exists){
       jsonfile.readFile("user-tokens.json", function(err, obj) {
@@ -131,7 +132,6 @@ function getUserToken(data, user){
           }
         }
         if(found){
-          console.log("TOKEN YYYYYYYYYYYYYYYY" + user);
           sendCompressRequest(data, token, user);
           return token;
         }else{
@@ -168,11 +168,6 @@ function sendCompressRequest(data, token, user){
       }
     });
   });
-}
-function deleteVideoFromLink(data, token){
-  var url = "https://slack.com/api/files.delete?token=" + token + "&file=" + data.file.id;
-  var request = https.get(url, function(res) {
-    });
 }
 function generatePublicURL(permalink_public, url_private){
   var s = permalink_public.split("-");
