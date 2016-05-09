@@ -5,7 +5,7 @@ var config = require("./config.js"),
     fs = require('fs'),
     https = require('https'),
     jsonfile = require('jsonfile');
-var testToken = config.slack_token;
+// var testToken = config.slack_token;
 var app = express();
 var bot = new SlackBot({
     token: config.bot_token, // Add a bot https://my.slack.com/services/new/bot and put the token
@@ -30,7 +30,7 @@ function analyizeMessage(data){
     howToCompress(data, user);
     return;
   }
-  if(data.type == "message" && data.text.indexOf("token=") > -1 && data.text.indexOf("YOURTOKEN") =< -1){
+  if(data.type == "message" && data.text.indexOf("token=") > -1 && data.text.indexOf("YOURTOKEN") <= -1){
     var user = getUser(bot.getUsers()._value.members, data.user);
     saveMyToken(data, user);
     return;
@@ -38,19 +38,9 @@ function analyizeMessage(data){
   if(data.type != "message" || data.user == null || data.file == null || data.file.filetype != "mp4"){
     return;
   }
-  if(data.text.indexOf("compress") > -1){
-    var url = "https://slack.com/api/files.sharedPublicURL?token=" + testToken + "&file=" + data.file.id;
-    var request = https.get(url, function(res) {
-      console.log('STATUS: ' + res.statusCode);
-      console.log('HEADERS: ' + JSON.stringify(res.headers));
-      res.setEncoding('utf8');
-      res.on('data', function (chunk) {
-        var downloadURL = generatePublicURL(data.file.permalink_public, data.file.url_private);
-        console.log("Download link " + downloadURL);
-        compressOnlineVideo(data.file.id, downloadURL, data);
-
-      });
-    });
+  if(data.text.indexOf("compress") > -1 ){
+    // console.log("SSSSSSSSSSSSSSSSSSSSSSSSS" + data.subtype);
+    var testToken = getUserToken(data);
   }
 }
 function getUser(users, userId){
@@ -64,7 +54,7 @@ function getUser(users, userId){
   return null;
 }
 
-function compressOnlineVideo(videoId, path, data){
+function compressOnlineVideo(videoId, path, data, token){
   var user = getUser(bot.getUsers()._value.members, data.user);
   if(user == null){
     return;
@@ -84,11 +74,12 @@ function compressOnlineVideo(videoId, path, data){
       .on('end', function() {
         console.log("DONE");
         bot.postMessageToUser(user, "Here is the link : " + videoId + "_modified" + ".mp4", params);
+      //  deleteVideoFromLink(data, token);
      })
      .save(videoId + "_modified" + ".mp4");
 }
 function howToCompress(data, user){
-  bot.postMessageToUser(user, "Go to the link  : https://api.slack.com/docs/oauth-test-tokens \n If you have token copy it and send it to me \n If not generate a one and send it to me \n you should send it in the format token=YOURTOKEN", params);
+  bot.postMessageToUser(user, "Go to the link  : https://api.slack.com/docs/oauth-test-tokens \n If you have token copy it and send it to me \n If not generate a token and send it to me \n you should send it in the format token=YOURTOKEN \n Then upload the video and call me in the comment to compress it for you by typing compress lucy", params);
 }
 function saveMyToken(data, user){
   var token = data.text.split("=");
@@ -121,6 +112,71 @@ function saveMyToken(data, user){
       })
     }
   })
+}
+function getUserToken(data){
+  fs.exists("user-tokens.json", function (exists) {
+    var user = getUser(bot.getUsers()._value.members, data.user);
+    if(exists){
+      jsonfile.readFile("user-tokens.json", function(err, obj) {
+        var found = false;
+        var token = null;
+        for(var i = 0 ; i < obj.length ; ++i){
+          if(obj[i].user == data.user){
+            found = true;
+            token = obj[i].token;
+            break;
+          }
+        }
+        if(found){
+          console.log("TOKEN" + token);
+          sendCompressRequest(data, token);
+          return token;
+        }else{
+          bot.postMessageToUser(user, "Please follow the following steps to add your token first : ", params);
+          howToCompress(data, user);
+          return null;
+        }
+      });
+    }else{
+      bot.postMessageToUser(user, "Please follow the following steps to add your token first : ", params);
+      howToCompress(data, user);
+      return null;
+    }
+  })
+}
+function sendCompressRequest(data, token){
+  var url = "https://slack.com/api/files.sharedPublicURL?token=" + token + "&file=" + data.file.id;
+  var request = https.get(url, function(res) {
+    console.log('STATUS: ' + res.statusCode);
+    console.log('HEADERS: ' + JSON.stringify(res.headers));
+    console.log("Data data data data data " + res)
+    res.setEncoding('utf8');
+    res.on('data', function (chunk) {
+      if(JSON.parse(chunk).ok){
+        var downloadURL = generatePublicURL(data.file.permalink_public, data.file.url_private);
+        console.log("Download link " + downloadURL);
+        compressOnlineVideo(data.file.id, downloadURL, data, token);
+
+      }else{
+        var user = getUser(bot.getUsers()._value.members, data.user);
+        bot.postMessageToUser(user, JSON.parse(chunk).error, params);
+        bot.postMessageToUser(user, "Please follow the following steps to add your token first : ", params);
+        howToCompress(data, user);
+      }
+    });
+  });
+}
+function deleteVideoFromLink(data, token){
+  var url = "https://slack.com/api/files.delete?token=" + token + "&file=" + data.file.id;
+  var request = https.get(url, function(res) {
+    console.log('STATUS: ' + res.statusCode);
+    console.log('HEADERS: ' + JSON.stringify(res.headers));
+    console.log("Data data data data data " + res)
+    res.setEncoding('utf8');
+    res.on('data', function (chunk) {
+      console.log(JSON.parse(chunk));
+      })
+    });
 }
 function generatePublicURL(permalink_public, url_private){
   var s = permalink_public.split("-");
