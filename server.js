@@ -3,8 +3,8 @@ var config = require("./config.js"),
     SlackBot = require('slackbots'),
     ffmpeg = require('fluent-ffmpeg'),
     fs = require('fs'),
-    https = require('https');
-
+    https = require('https'),
+    jsonfile = require('jsonfile');
 var testToken = config.slack_token;
 var app = express();
 var bot = new SlackBot({
@@ -30,7 +30,7 @@ function analyizeMessage(data){
     howToCompress(data, user);
     return;
   }
-  if(data.type == "message" && data.text.indexOf("token") > -1){
+  if(data.type == "message" && data.text.indexOf("token=") > -1 && data.text.indexOf("YOURTOKEN") =< -1){
     var user = getUser(bot.getUsers()._value.members, data.user);
     saveMyToken(data, user);
     return;
@@ -69,7 +69,6 @@ function compressOnlineVideo(videoId, path, data){
   if(user == null){
     return;
   }
-  howToCompress(data, user);
   bot.postMessageToUser(user, "Fetching the video", params);
   var proc = new ffmpeg(path)
       .addOption('-c:v',  'libx264', '-profile:v', 'baseline', '-level', '3.0', '-b:v', '800k')
@@ -93,8 +92,35 @@ function howToCompress(data, user){
 }
 function saveMyToken(data, user){
   var token = data.text.split("=");
-  
-  bot.postMessageToUser(user, "I have saved your token do not worry I will not share it with anyone", params);
+  var record = { user: data.user, token: token[token.length - 1]}
+  fs.exists("user-tokens.json", function (exists) {
+    if(exists){
+      jsonfile.readFile("user-tokens.json", function(err, obj) {
+        var found = false;
+        for(var i = 0 ; i < obj.length ; ++i){
+          if(obj[i].user == data.user){
+            obj[i].token = token[token.length - 1];
+            found = true;
+            break;
+          }
+        }
+        if(!found){
+          obj.push(record);
+        }
+        jsonfile.writeFile("user-tokens.json", obj, {spaces: 2}, function(err) {
+          console.error(err);
+          bot.postMessageToUser(user, "I have saved your token do not worry I will not share it with anyone", params);
+        })
+      })
+    }else{
+      var array = new Array();
+      array.push(record);
+      jsonfile.writeFile("user-tokens.json", array, {spaces: 2}, function(err) {
+        console.error(err);
+        bot.postMessageToUser(user, "I have saved your token do not worry I will not share it with anyone", params);
+      })
+    }
+  })
 }
 function generatePublicURL(permalink_public, url_private){
   var s = permalink_public.split("-");
@@ -102,7 +128,6 @@ function generatePublicURL(permalink_public, url_private){
   console.log("String kewy : " + s);
   return url_private + "?pub_secret=" + s;
 }
-
 app.listen(8080, function () {
   console.log('Server started listening on %d', "8080");
 });
